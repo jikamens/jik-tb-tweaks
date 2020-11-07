@@ -45,6 +45,7 @@ function checkCholCallback(retval, error) {
   log('Entering checkCholCallback');
   working = false;
   if (error) {
+    log('XHR returned error; trying again in a minute');
     browser.alarms.create({periodInMinutes: 1});
     throw error;
   }
