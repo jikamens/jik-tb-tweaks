@@ -37,8 +37,8 @@ function checkChol(alarm) {
   // inverted NextChol query, which will either return 0 if it's
   // currently Shabbat or Yom Tov, or the time in the future when it
   // will next be Shabbat or Yom Tov.
-  NextCholBasic(false, sendDoesSL == false, true, checkCholCallback);
-  log('checkChol: fired NextCholBasic');
+  NextChol(false, sendDoesSL == false, true, checkCholCallback);
+  log('checkChol: fired NextChol');
 }
 
 function checkCholCallback(retval, error) {
@@ -74,7 +74,7 @@ function checkCholCallback(retval, error) {
 // string is truthy, then the request failed, and the string explains
 // why. Otherwise, the return value is what this function would have
 // returned if a callback hadn't been specified.
-function NextCholBasic(force, inverse, zeroish, callback) {
+function NextChol(force, inverse, zeroish, asOf, callback) {
     var url = 'https://jik4.kamens.us/cgi-bin/next-chol.cgi?';
     var args = new Array();
     if (force) {
