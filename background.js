@@ -90,6 +90,11 @@ function checkCholCallback(retval, error) {
            log(`checkCholCallback: flipped sendDoesSL to ${sendDoesSL}, ` +
                'checking again in a minute');
            setAlarm({periodInMinutes: 1});
+         }).catch(err => {
+           log('checkCholCallback: error setting preferences, trying again ' +
+               'in a minute');
+           setAlarm({periodInMinutes: 1});
+           throw error;
          });
     return;
   }
