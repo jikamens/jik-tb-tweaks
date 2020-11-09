@@ -19,9 +19,26 @@ function log(msg) {
 
 browser.alarms.onAlarm.addListener(checkChol);
 
-browser.runtime.sendMessage(
-  "sendlater3@kamens.us",
-  {action: "getPreferences"}).then(startCheckingChol);
+async function startUp() {
+  var tries = 10;
+  browser.runtime.sendMessage("sendlater3@kamens.us",
+                              {action: "getPreferences"})
+    .then(startCheckingChol)
+    .catch(async (error) => {
+      // Send Later isn't loaded yet
+      if (! tries--) {
+        log("startUp: Send Later failed to load, giving up");
+        throw(error);
+      }
+      else {
+        log("startUp: Send Later isn't loaded yet, sleeping and trying again");
+        await new Promise(r => setTimeout(r, 1000));
+        startUp();
+      }
+    });
+}
+
+startUp();
 
 async function setAlarm(info) {
   var lastTestCount = logicTestCount--;
