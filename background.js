@@ -80,6 +80,7 @@ function checkCholCallback(retval, error) {
   if (retval == 0) {
     // Flip sendDoesSL and check again in a minute. This prevents us
     // from having to worry about the race condition.
+    log(`checkCholCallback: Changing sendDoesSL to ${!sendDoesSL}`);
     browser.runtime.sendMessage(
       "sendlater3@kamens.us",
       {action: "setPreferences",
