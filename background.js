@@ -98,21 +98,27 @@ function checkCholCallback(retval, error) {
     // Flip sendDoesSL and check again in a minute. This prevents us
     // from having to worry about the race condition.
     log(`checkCholCallback: Changing sendDoesSL to ${!sendDoesSL}`);
-    browser.runtime.sendMessage(
-      "sendlater3@kamens.us",
-      {action: "setPreferences",
-       preferences: {sendDoesSL: !sendDoesSL}}).then(
-         (prefs) => {
-           sendDoesSL = !sendDoesSL;
-           log(`checkCholCallback: flipped sendDoesSL to ${sendDoesSL}, ` +
-               'checking again in a minute');
-           setAlarm({periodInMinutes: 1});
-         }).catch(err => {
-           log('checkCholCallback: error setting preferences, trying again ' +
-               'in a minute');
-           setAlarm({periodInMinutes: 1});
-           throw error;
-         });
+    try {
+      browser.runtime.sendMessage(
+        "sendlater3@kamens.us",
+        {action: "setPreferences",
+         preferences: {sendDoesSL: !sendDoesSL}}).then(
+           (prefs) => {
+             sendDoesSL = !sendDoesSL;
+             log(`checkCholCallback: flipped sendDoesSL to ${sendDoesSL}, ` +
+                 'checking again in a minute');
+             setAlarm({periodInMinutes: 1});
+           }).catch(err => {
+             log('checkCholCallback: error setting preferences, trying again ' +
+                 'in a minute');
+             setAlarm({periodInMinutes: 1});
+             throw error;
+           });
+    } catch (ex) {
+      log('checkCholCallback: failed to set preferences, trying again in a ' +
+          'minute');
+      setAlarm({periodInMinutes: 1});
+    }
     return;
   }
   then = new Date(retval * 1000);
