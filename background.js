@@ -105,9 +105,8 @@ function checkCholCallback(retval, error) {
          preferences: {sendDoesSL: !sendDoesSL}}).then(
            (prefs) => {
              sendDoesSL = !sendDoesSL;
-             log(`checkCholCallback: flipped sendDoesSL to ${sendDoesSL}, ` +
-                 'checking again in a minute');
-             setAlarm({periodInMinutes: 1});
+             log(`checkCholCallback: successfully flipped sendDoesSL to ` +
+                 `${sendDoesSL}`);
            }).catch(err => {
              log('checkCholCallback: error setting preferences, trying again ' +
                  'in a minute');
@@ -115,10 +114,10 @@ function checkCholCallback(retval, error) {
              throw error;
            });
     } catch (ex) {
-      log('checkCholCallback: failed to set preferences, trying again in a ' +
-          'minute');
-      setAlarm({periodInMinutes: 1});
+      log('checkCholCallback: failed to set preferences');
     }
+    log('Trying again in a minute');
+    setAlarm({periodInMinutes: 1});
     return;
   }
   then = new Date(retval * 1000);
