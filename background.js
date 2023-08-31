@@ -1,29 +1,82 @@
 // Figure out whether it's Shabbat or Yom Tov (SYT). If so, enable
 // Send Does Send Later. Otherwise, disable it.
-
+//
 // Initially, we set an alarm which runs once per minute until the
 // first time it succeeds. Once it succeeds, it uses the returned
 // value to determine when it next needs to run and updates the alarm
 // accordingly.
+//
+// Also keep sendDrafts set to false if that's desired. Check every
+// five minutes for that, so that if we need to tweak it during
+// testing it stays tweaked for a while.
 
-var sendDoesSL;
 var working = false;
-// Set to -1 to bypoass startup testing
-var logicTestCount = 4;
+var logicTestCount = -1;
 var lastTestTime = undefined;
+var myPrefs = {};
+var slPrefs = {};
+
+async function loadPrefs() {
+  messenger.storage.onChanged.addListener(loadPrefs);
+  let storage = await messenger.storage.local.get({prefs: {}});
+  myPrefs = storage.prefs;
+}
 
 function log(msg) {
   tag = (logicTestCount > 0) ? " [TESTING]" : "";
   console.log(`jik tweaks${tag}: ${msg}`);
 }
 
-browser.alarms.onAlarm.addListener(checkChol);
+browser.alarms.onAlarm.addListener(dispatchAlarm);
+
+function dispatchAlarm(alarm) {
+  if (alarm.name == "NextChol") {
+    return checkChol(alarm);
+  } else if (alarm.name = "sendDrafts") {
+    return checkSendDrafts(alarm);
+  }
+  else {
+    throw new Error(`Unrecognized alarm: ${alarm.name}`);
+  }
+}
+
+async function startCheckingSendDrafts() {
+  await browser.alarms.create("sendDrafts",
+                              {when: Date.now(), periodInMinutes: 5});
+}
+
+async function checkSendDrafts(alarm) {
+  log("checkSendDrafts");
+  if (! myPrefs.disableSendDrafts) {
+    log("checkSendDrafts: disableSendDrafts is false, returning");
+    return;
+  }
+  slPrefs = await browser.runtime.sendMessage("sendlater3@kamens.us",
+                                              {action: "getPreferences"});
+  if (slPrefs.sendDrafts) {
+    await browser.runtime.sendMessage(
+      "sendlater3@kamens.us",
+      {action: "setPreferences",
+       preferences: {sendDrafts: false}});
+    log("checkSendDrafts: disabled sendDrafts");
+  }
+  else {
+    log("checkSendDrafts: sendDrafts is correct");
+  }
+}
 
 async function startUp() {
+  await loadPrefs();
+  logicTestCount = myPrefs.testOnStartup ? 4 : -1;
+  
   var tries = 10;
   browser.runtime.sendMessage("sendlater3@kamens.us",
                               {action: "getPreferences"})
-    .then(startCheckingChol)
+    .then((prefs) => {
+      slPrefs = prefs;
+      startCheckingChol();
+      startCheckingSendDrafts();
+    })
     .catch(async (error) => {
       // Send Later isn't loaded yet
       if (! tries--) {
@@ -40,7 +93,7 @@ async function startUp() {
 
 startUp();
 
-async function setAlarm(info) {
+async function setNextCholAlarm(info) {
   var lastTestCount = logicTestCount--;
   if (lastTestCount > 0) {
     if (info.when) {
@@ -51,23 +104,22 @@ async function setAlarm(info) {
     }
     // The NextChol endpoint is rate-limited
     await new Promise(r => setTimeout(r, 1000));
-    log(`setAlarm: running checkChol as of ${new Date(lastTestTime)}`);
+    log(`setNextCholAlarm: running checkChol as of ${new Date(lastTestTime)}`);
     checkChol({}, lastTestTime);
   }
   else if (lastTestCount == 0) {
     await new Promise(r => setTimeout(r, 1000));
-    log('setAlarm: finished testing, returning to real-time');
-    browser.alarms.create({when: Date.now(), periodInMinutes: 1});
+    log('setNextCholAlarm: finished testing, returning to real-time');
+    browser.alarms.create("NextChol", {when: Date.now(), periodInMinutes: 1});
   }
   else {
-    browser.alarms.create(info);
+    browser.alarms.create("NextChol", info);
   }
 }
 
-function startCheckingChol(prefs) {
-  log(`startCheckingChol: prefs.sendDoesSL=${prefs.sendDoesSL}`);
-  sendDoesSL = prefs.sendDoesSL;
-  setAlarm({when: Date.now(), periodInMinutes: 1});
+function startCheckingChol() {
+  log(`startCheckingChol: sendDoesSL=${slPrefs.sendDoesSL}`);
+  setNextCholAlarm({when: Date.now(), periodInMinutes: 1});
 }
 
 function checkChol(alarm, asOf) {
@@ -82,16 +134,23 @@ function checkChol(alarm, asOf) {
   // inverted NextChol query, which will either return 0 if it's
   // currently Shabbat or Yom Tov, or the time in the future when it
   // will next be Shabbat or Yom Tov.
-  NextChol(false, sendDoesSL == false, true, asOf, checkCholCallback);
+  NextChol(false, slPrefs.sendDoesSL == false, true, asOf,
+           (retval, error) => {
+             // We are passing in sendDoesSL here because it might have been
+             // changed in the interim by the sendDrafts code that periodically
+             // refetches the SL preferences. I.e., we're preventing a race
+             // condition.
+             return checkCholCallback(retval, error, slPrefs.sendDoesSL);
+           });
   log('checkChol: fired NextChol');
 }
 
-function checkCholCallback(retval, error) {
+function checkCholCallback(retval, error, sendDoesSL) {
   log('Entering checkCholCallback');
   working = false;
   if (error) {
     log('XHR returned error; trying again in a minute');
-    setAlarm({periodInMinutes: 1});
+    setNextCholAlarm({periodInMinutes: 1});
     throw error;
   }
   if (retval == 0) {
@@ -104,25 +163,25 @@ function checkCholCallback(retval, error) {
         {action: "setPreferences",
          preferences: {sendDoesSL: !sendDoesSL}}).then(
            (prefs) => {
-             sendDoesSL = !sendDoesSL;
+             slPrefs.sendDoesSL = !sendDoesSL;
              log(`checkCholCallback: successfully flipped sendDoesSL to ` +
-                 `${sendDoesSL}`);
+                 `${slPrefs.sendDoesSL}`);
            }).catch(err => {
              log('checkCholCallback: error setting preferences, trying again ' +
                  'in a minute');
-             setAlarm({periodInMinutes: 1});
+             setNextCholAlarm({periodInMinutes: 1});
              throw error;
            });
     } catch (ex) {
       log('checkCholCallback: failed to set preferences');
     }
     log('Trying again in a minute');
-    setAlarm({periodInMinutes: 1});
+    setNextCholAlarm({periodInMinutes: 1});
     return;
   }
   then = new Date(retval * 1000);
   log(`checkColCallback: waiting until ${then} to check again`);
-  setAlarm({when: retval * 1000});
+  setNextCholAlarm({when: retval * 1000});
 }
 
 // If callback is truthy, then it's a function which takes two

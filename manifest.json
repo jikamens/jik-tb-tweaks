@@ -11,11 +11,15 @@
   },
   "permissions": [
     "alarms",
-    "https://jik4.kamens.us/"
+    "https://jik4.kamens.us/",
+    "storage"
   ],
   "background": {
     "scripts": [
       "/background.js"
     ]
+  },
+  "options_ui": {
+    "page": "options.html"
   }
 }
