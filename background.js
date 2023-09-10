@@ -1,5 +1,5 @@
-// Figure out whether it's Shabbat or Yom Tov (SYT). If so, enable
-// Send Does Send Later. Otherwise, disable it.
+// Figure out whether it's Shabbat or Yom Tov. If so, enable Send Does
+// Send Later. Otherwise, disable it.
 //
 // Initially, we set an alarm which runs once per minute until the
 // first time it succeeds. Once it succeeds, it uses the returned
